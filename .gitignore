@@ -1,6 +1,1 @@
-data/raw/covid_19_data.csv
-data/raw/time_series_covid_19_confirmed.csv
-data/raw/time_series_covid_19_deaths_US.csv
-data/raw/time_series_covid_19_confirmed_US.csv
-data/raw/time_series_covid_19_deaths.csv
-data/raw/time_series_covid_19_recovered.csv
+data/raw/owid-covid-data.csv
