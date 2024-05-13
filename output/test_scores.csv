@@ -1,4 +1,0 @@
-,Model Type,Validation Score,Test Score
-0,Linear model; shift 10; regularisation type ridge; alpha 0.001,0.9306872764278664,0.9442603134660129
-1,Random Forest model; shift 10; max depth 40; bootstrap True,0.8300999675367853,0.9537239114369956
-2,MLP model; shift 10; 1 hidden layers; 256 units per layer,0.79078466,0.9119434356689453
