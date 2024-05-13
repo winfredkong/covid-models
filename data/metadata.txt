@@ -1,1 +1,3 @@
-Input metadata
+For more detailed information on the original data set please see https://github.com/owid/covid-19-data/blob/master/public/data/README.md
+
+The cleaned_df.csv in data/derived is a cleaned dataframe for conducting modelling and plotting.

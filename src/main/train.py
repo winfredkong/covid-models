@@ -2,19 +2,24 @@ from sklearn.preprocessing import MinMaxScaler
 import os
 import pandas as pd
 import numpy as np
+from sklearn import linear_model
+from sklearn.ensemble import RandomForestRegressor
 
 import tensorflow as tf
 from tensorflow.keras import layers, models
 import keras
 
 from src.helper_functions.training_functions import train_lm, train_nn, train_rf
+from src.helper_functions.data_prep import split_xy, add_shift_predictors
 
 '''
-This script trains all 3 models and produces the scores for all hyperparameters and requires data/derived/cleaned_df.csv
+This script trains all 3 models, then evaluates on the test set and produces the scores for all hyperparameters and 
+requires data/derived/cleaned_df.csv
 The output are csv dataframes that contain the results which can be used for plotting later:
     output/lm_results.csv
     output/rf_results.csv
     output/nn_results.csv
+    output/test_scores.csv
 We have also added a check on whether results have already been previously generated, so that it skips those.
 This allows for shorter run time in the case where for example 1 model has already been trained and result produced, but
 other model results have not been produced yet.
@@ -139,3 +144,125 @@ else:
     # Convert scores to DataFrame
     results_df = pd.DataFrame(results_scores)
     results_df.to_csv(results_path)
+
+
+'''
+Evaluate Model on Test Set for Linear Model
+'''
+if os.path.exists('output/test_scores.csv'):
+    print('Score results are already produced.')
+else:
+    # Evaluate linear model
+    results_path = 'output/lm_results.csv'
+    results_df = pd.read_csv(results_path)
+
+    # Get best hyperparameters
+    best = results_df.iloc[results_df['validation score'].idxmax(), :]
+    shift = best['shift']
+    type = best['regularisation type']
+    alpha = best['regularisation magnitude']
+    val_score = best['validation score']
+
+    lag_train_df = add_shift_predictors(train_df, shift)
+    lag_test_df = add_shift_predictors(test_df, shift)
+
+    # Drop irrelevant columns to get x,y
+    x_train, y_train = split_xy(lag_train_df)
+    x_test, y_test = split_xy(lag_test_df)
+
+    if type == 'lasso':
+        model = linear_model.LassoLars(alpha=alpha)
+    else:
+        model = linear_model.Ridge(alpha=alpha)
+
+    model.fit(x_train, y_train)
+    test_score = model.score(x_test, y_test)
+
+    # Collate test scores
+    all_models_results = []
+
+    all_models_results.append({
+                    'Model Type': f'Linear model; shift {shift}; regularisation type {type}; alpha {alpha}',
+                    'Validation Score': val_score,
+                    'Test Score': test_score
+                    })
+
+    '''
+    Evaluate for Random Forest
+    '''
+    # Evaluate Random Forest Model
+    results_path = 'output/rf_results.csv'
+    results_df = pd.read_csv(results_path)
+
+    best = results_df.iloc[results_df['validation score'].idxmax(), :]
+    shift = best['shift']
+    max_depth = int(best['max depth'])
+    bootstrap = best['bootstrap']
+    val_score = best['validation score']
+
+    lag_train_df = add_shift_predictors(train_df, shift)
+    lag_test_df = add_shift_predictors(test_df, shift)
+
+    # Drop irrelevant columns to get x,y
+    x_train, y_train = split_xy(lag_train_df)
+    x_test, y_test = split_xy(lag_test_df)
+
+    model = RandomForestRegressor(max_depth=max_depth, bootstrap=bootstrap, random_state=1843091, n_jobs=-1)
+    model.fit(x_train, y_train)
+    test_score = model.score(x_test, y_test)
+
+    all_models_results.append({
+                    'Model Type': f'Random Forest model; shift {shift}; max depth {max_depth}; bootstrap {bootstrap}',
+                    'Validation Score': val_score,
+                    'Test Score': test_score
+                    })
+
+
+    '''
+    Evaluate for MLP model
+    '''
+    results_path = 'output/nn_results.csv'
+    results_df = pd.read_csv(results_path)
+
+    best = results_df.iloc[results_df['validation score'].idxmax(), :]
+    shift = best['shift'].astype(np.int32)
+    unit = best['units per layer'].astype(np.int32)
+    layer = best['number of hidden layers'].astype(np.int32)
+    val_score = best['validation score']
+    print(shift, unit, layer)
+
+
+    # Create lag features for predictors
+    lag_train_df = add_shift_predictors(train_df, shift)
+    lag_test_df = add_shift_predictors(test_df, shift)
+
+    # Drop irrelevant columns to get x,y
+    x_train, y_train = split_xy(lag_train_df)
+    x_test, y_test = split_xy(lag_test_df)
+
+    # Define model based on hyperparameters
+    model = models.Sequential()
+    model.add(layers.Input(shape=(12+8*shift,)))
+    for _ in range(layer):
+        model.add(layers.Dense(unit, activation='relu'))
+        model.add(layers.Dropout(0.1))
+    model.add(layers.Dense(3, activation='sigmoid'))
+
+    weight_path = f'output/nn/{layer}layer_{unit}unit_{shift}shift/best_chkpt.keras'
+    model.load_weights(weight_path)
+
+    y_pred = model.predict(x_test)
+    scorer = keras.metrics.R2Score()
+    scorer.update_state(tf.cast(y_test, tf.float32), y_pred)
+
+    test_score = scorer.result()
+
+    all_models_results.append({
+                    'Model Type': f'MLP model; shift {shift}; {layer} hidden layers; {unit} units per layer',
+                    'Validation Score': val_score,
+                    'Test Score': test_score.numpy()
+                    })
+
+    # Save test scores
+    results_df = pd.DataFrame(all_models_results)
+    results_df.to_csv('output/test_scores.csv')

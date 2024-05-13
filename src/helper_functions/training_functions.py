@@ -2,6 +2,7 @@ from sklearn import linear_model
 import pandas as pd
 import matplotlib.pyplot as plt
 import numpy as np
+from sklearn.ensemble import RandomForestRegressor
 
 import keras
 import tensorflow as tf

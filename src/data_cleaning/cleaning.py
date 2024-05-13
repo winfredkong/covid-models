@@ -6,7 +6,6 @@ This script reads data/raw/owid-covid-data.csv and filters/cleans the data for f
 The resulting df is then stored in data/derived/cleaned_df.csv
 '''
 
-
 # Read csv
 full_df = pd.read_csv('data/raw/owid-covid-data.csv')
 
